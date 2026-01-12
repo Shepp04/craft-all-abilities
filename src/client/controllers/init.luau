@@ -93,7 +93,7 @@ function API.InitAll(extraDeps: any?)
 
 	for _, c in ipairs(_ordered) do
 		if typeof((c :: any).Init) == "function" then
-			(c :: any):Init(deps)
+			pcall(function() (c :: any):Init(deps) end)
 		end
 	end
 
@@ -108,7 +108,7 @@ function API.StartAll()
 	if not API._inited or API._started then return end
 	for _, c in ipairs(_ordered) do
 		if typeof((c :: any).Start) == "function" then
-			(c :: any):Start()
+			pcall(function() (c :: any):Start() end)
 		end
 	end
 	API._started = true
