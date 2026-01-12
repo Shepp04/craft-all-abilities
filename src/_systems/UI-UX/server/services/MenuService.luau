@@ -96,6 +96,14 @@ function MenuService:Start()
 		local stand = MenuStand.new(_deps, { model = standModel, menuName = menuName, useProximityPrompt = useProximityPrompt })
 		stand:Init()
 	end
+
+	CollectionService:GetInstanceAddedSignal("MenuStand"):Connect(function(standModel)
+		local menuName = standModel:GetAttribute("MenuName")
+		local useProximityPrompt = standModel:GetAttribute("UseProximityPrompt")
+
+		local stand = MenuStand.new(_deps, { model = standModel, menuName = menuName, useProximityPrompt = useProximityPrompt })
+		stand:Init()
+	end)
 end
 
 function MenuService:Destroy()

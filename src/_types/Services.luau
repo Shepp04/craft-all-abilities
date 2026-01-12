@@ -8,6 +8,7 @@ export type DataInterface = typeof(require(ServerScriptService.Server.Services.D
 export type MenuService = typeof(require(ServerScriptService.Server.Services.MenuService))
 export type NametagService = typeof(require(ServerScriptService.Server.Services.NametagService))
 export type PlayerService = typeof(require(ServerScriptService.Server.Services.PlayerService))
+export type PlotService = typeof(require(ServerScriptService.Server.Services.PlotService))
 export type SocialService = typeof(require(ServerScriptService.Server.Services.SocialService))
 
 export type Registry = {
@@ -15,6 +16,7 @@ export type Registry = {
 	MenuService: MenuService,
 	NametagService: NametagService,
 	PlayerService: PlayerService,
+	PlotService: PlotService,
 	SocialService: SocialService,
 	[string]: any,
 }

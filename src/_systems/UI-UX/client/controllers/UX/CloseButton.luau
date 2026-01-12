@@ -69,6 +69,7 @@ end
 
 -- ========== Life Cycle ========== --
 function GuiComponent:Init()
+	print("CLOSE BUTTON INIT")
 	for _, instance in CollectionService:GetTagged(TAG) do
 		GuiComponent:Create(instance)
 	end

@@ -76,6 +76,9 @@
           "NametagService": {
             "$path": "src/_systems/nametags/server/services/NametagService.luau"
           },
+          "PlotService": {
+            "$path": "src/_systems/plots/server/services/PlotService.luau"
+          },
           "SocialService": {
             "$path": "src/_systems/social/server/services/SocialService.luau"
           }
@@ -111,6 +114,15 @@
             "nametags": {
               "$className": "Folder"
             },
+            "plots": {
+              "$className": "Folder",
+              "DevProducts": {
+                "$path": "src/_systems/plots/monetisation/DevProducts.luau"
+              },
+              "Gamepasses": {
+                "$path": "src/_systems/plots/monetisation/Gamepasses.luau"
+              }
+            },
             "social": {
               "$className": "Folder"
             }
@@ -120,7 +132,10 @@
           }
         },
         "Classes": {
-          "$className": "Folder"
+          "$className": "Folder",
+          "Plot": {
+            "$path": "src/_systems/plots/server/classes/Plot.luau"
+          }
         },
         "GameDataMaster": {
           "$path": "src/_game_data/source/GameDataMaster.luau",
