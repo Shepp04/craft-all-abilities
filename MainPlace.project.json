@@ -1,0 +1,183 @@
+{
+  "name": "woolly-MainPlace",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$className": "Folder",
+        "Packages": {
+          "$path": "src/shared/packages"
+        },
+        "GameData": {
+          "$path": "src/_game_data/resolver"
+        },
+        "Types": {
+          "$path": "src/_types"
+        },
+        "Config": {
+          "$path": "src/shared/config"
+        },
+        "Monetisation": {
+          "$path": "src/_monetisation/resolver"
+        },
+        "Classes": {
+          "$className": "Folder",
+          "MenuStand": {
+            "$path": "src/_systems/UI-UX/shared/classes/MenuStand.luau"
+          }
+        },
+        "Assets": {
+          "$className": "Folder",
+          "UI": {
+            "$className": "Folder",
+            "MessageGui": {
+              "$path": "src/shared/assets/ui/MessageGui.rbxmx"
+            },
+            "MonetisationCreditGui": {
+              "$path": "src/shared/assets/ui/MonetisationCreditGui.rbxmx"
+            },
+            "MonetisationOverlay": {
+              "$path": "src/shared/assets/ui/MonetisationOverlay.rbxmx"
+            },
+            "Nametag": {
+              "$path": "src/_systems/nametags/shared/assets/ui/Nametag.rbxmx"
+            },
+            "GroupRewardGui": {
+              "$path": "src/_systems/social/shared/assets/ui/GroupRewardGui.rbxmx"
+            }
+          },
+          "Models": {
+            "$className": "Folder"
+          }
+        },
+        "Utils": {
+          "$className": "Folder",
+          "Social": {
+            "$path": "src/_systems/social/shared/utils/Social.luau"
+          }
+        }
+      },
+      "ExternalPackages": {
+        "$className": "Folder",
+        "$path": "Packages"
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$className": "Folder",
+        "Bootstrap": {
+          "$path": "src/server/Bootstrap.server.luau"
+        },
+        "Services": {
+          "$path": "src/server/services",
+          "MenuService": {
+            "$path": "src/_systems/UI-UX/server/services/MenuService.luau"
+          },
+          "NametagService": {
+            "$path": "src/_systems/nametags/server/services/NametagService.luau"
+          },
+          "SocialService": {
+            "$path": "src/_systems/social/server/services/SocialService.luau"
+          }
+        },
+        "Packages": {
+          "$path": "src/server/packages"
+        },
+        "Monetisation": {
+          "$path": "src/_monetisation/source/Monetisation.luau",
+          "product_defs": {
+            "$className": "Folder",
+            "Base": {
+              "$className": "Folder",
+              "DevProducts": {
+                "$path": "src/_monetisation/source/product_defs/DevProducts.luau"
+              },
+              "Gamepasses": {
+                "$path": "src/_monetisation/source/product_defs/Gamepasses.luau"
+              }
+            },
+            "UI-UX": {
+              "$className": "Folder"
+            },
+            "crafting": {
+              "$className": "Folder",
+              "DevProducts": {
+                "$path": "src/_systems/crafting/monetisation/DevProducts.luau"
+              },
+              "Gamepasses": {
+                "$path": "src/_systems/crafting/monetisation/Gamepasses.luau"
+              }
+            },
+            "nametags": {
+              "$className": "Folder"
+            },
+            "social": {
+              "$className": "Folder"
+            }
+          },
+          "Aggregator": {
+            "$path": "src/_monetisation/source/Aggregator.luau"
+          }
+        },
+        "Classes": {
+          "$className": "Folder"
+        },
+        "GameDataMaster": {
+          "$path": "src/_game_data/source/GameDataMaster.luau",
+          "data_types": {
+            "$className": "Folder",
+            "Craftables": {
+              "$path": "src/_systems/crafting/data_types/Craftables.luau"
+            }
+          }
+        }
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$className": "Folder",
+          "Bootstrap": {
+            "$path": "src/client/Bootstrap.client.luau"
+          },
+          "Controllers": {
+            "$path": "src/client/controllers",
+            "MenuController": {
+              "$path": "src/_systems/UI-UX/client/controllers/MenuController.luau"
+            },
+            "TransitionController": {
+              "$path": "src/_systems/UI-UX/client/controllers/TransitionController.luau"
+            },
+            "UX": {
+              "$path": "src/_systems/UI-UX/client/controllers/UX"
+            },
+            "SocialController": {
+              "$path": "src/_systems/social/client/controllers/SocialController.luau"
+            }
+          },
+          "Components": {
+            "$className": "Folder",
+            "Spotlight": {
+              "$path": "src/_systems/UI-UX/client/components/Spotlight"
+            },
+            "FriendAlert": {
+              "$path": "src/_systems/social/client/components/FriendAlert.luau"
+            },
+            "FriendBoostedCurrencyLabel": {
+              "$path": "src/_systems/social/client/components/FriendBoostedCurrencyLabel.luau"
+            }
+          },
+          "Utils": {
+            "$className": "Folder",
+            "GuiRefs": {
+              "$path": "src/client/utils/GuiRefs.luau"
+            },
+            "InputUtil": {
+              "$path": "src/client/utils/InputUtil.luau"
+            }
+          }
+        }
+      }
+    }
+  }
+}

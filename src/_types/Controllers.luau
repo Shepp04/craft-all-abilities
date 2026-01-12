@@ -4,9 +4,15 @@
 
 local StarterPlayer = game:GetService("StarterPlayer")
 
+export type MenuController = typeof(require(StarterPlayer.StarterPlayerScripts.Client.Controllers.MenuController))
+export type SocialController = typeof(require(StarterPlayer.StarterPlayerScripts.Client.Controllers.SocialController))
+export type TransitionController = typeof(require(StarterPlayer.StarterPlayerScripts.Client.Controllers.TransitionController))
 export type UX = typeof(require(StarterPlayer.StarterPlayerScripts.Client.Controllers.UX))
 
 export type Registry = {
+	MenuController: MenuController,
+	SocialController: SocialController,
+	TransitionController: TransitionController,
 	UX: UX,
 	[string]: any,
 }
