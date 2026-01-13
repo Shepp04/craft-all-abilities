@@ -9,6 +9,23 @@ local ServerScriptService = game:GetService("ServerScriptService")
 -- // Classes
 local PlotClass = require(ServerScriptService.Server.Classes:WaitForChild("Plot"))
 
+-- // Types (custom)
+export type PlacedItemData = {
+	itemId: string,
+	position: Vector3,
+	rotation: number,
+	placedAtTimestamp: number,
+	currenciesToCollect: { [string]: number },
+	modifiers: { any },
+}
+
+export type CraftingStationData = {
+	stationId: string,
+	unlocked: boolean,
+	unlockedAtTimestamp: number,
+	level: number?,
+}
+
 -- // Types (generated)
 local ServicesTypes = require(ReplicatedStorage.Shared.Types.Services)
 
@@ -61,6 +78,10 @@ local PlotService = {
 
 -- Private captured deps for intellisense-friendly access
 local _deps: Deps?
+
+-- // Constants
+local GRID_WIDTH = 6
+local GRID_HEIGHT = 3
 
 -- Track active plots and slot availability
 local _plots: { [Player]: any } = {} -- PlotAPI instances by player
@@ -186,7 +207,14 @@ function PlotService:Init(deps: Deps)
 	self._conns = {}
 	_deps = deps
 
-	-- // Example: get/create remotes
+	-- // Register reconcile sections
+	_deps.DataInterface:RegisterReconcileSection("Data", "Plot", {
+		PlacedItems = {} :: { [string]: PlacedItemData },
+		UnlockedTiles = { math.ceil(GRID_WIDTH / 2), GRID_WIDTH % 2 == 0 and (GRID_WIDTH / 2) + 1 or nil } :: { number }, -- index = y * gridwidth + x
+		CraftingStations = { [1] = {
+			craftingStationId = "default_station", unlocked = true, unlockedAtTimestamp = os.time(), level = 1
+		} } :: { [number]: CraftingStationData },
+	})
 end
 
 function PlotService:Start()
