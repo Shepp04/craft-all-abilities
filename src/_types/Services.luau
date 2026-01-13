@@ -5,6 +5,7 @@
 local ServerScriptService = game:GetService("ServerScriptService")
 
 export type DataInterface = typeof(require(ServerScriptService.Server.Services.DataInterface))
+export type InventoryService = typeof(require(ServerScriptService.Server.Services.InventoryService))
 export type MenuService = typeof(require(ServerScriptService.Server.Services.MenuService))
 export type NametagService = typeof(require(ServerScriptService.Server.Services.NametagService))
 export type PlayerService = typeof(require(ServerScriptService.Server.Services.PlayerService))
@@ -13,6 +14,7 @@ export type SocialService = typeof(require(ServerScriptService.Server.Services.S
 
 export type Registry = {
 	DataInterface: DataInterface,
+	InventoryService: InventoryService,
 	MenuService: MenuService,
 	NametagService: NametagService,
 	PlayerService: PlayerService,
