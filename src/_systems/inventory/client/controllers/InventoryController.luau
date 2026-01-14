@@ -99,46 +99,46 @@ function InventoryController:Init(deps: Deps)
 	-- // Create Hotbar component first
 	self._hotbarComponent = HotbarComponent.new(_deps, {
 		frame = GuiRefs.Get(hotbarGui, { "HotbarFrame" }),
-		onActivate = function(slotNumber: number, itemId: string)
+		onActivate = function(slotNumber: number, stackId: string, itemId: string)
 			-- Handle item activation (place, use, etc.)
-			print("[InventoryController] Activating slot", slotNumber, "with item", itemId)
+			print("[InventoryController] Activating slot", slotNumber, "with stack", stackId, "item", itemId)
 			-- TODO: Implement item activation logic
 			-- For placeable items: trigger placement mode
 			-- For abilities: cast ability
 		end,
 		onRemove = function(slotNumber: number)
-			-- Remove item from hotbar slot
+			-- Remove stack from hotbar slot
 			self._setHotbarSlotRemote:FireServer(slotNumber, nil)
-			print("[InventoryController] Removing item from hotbar slot", slotNumber)
+			print("[InventoryController] Removing stack from hotbar slot", slotNumber)
 		end,
 	})
 
 	-- // Create components
 	self._inventoryComponent = InventoryComponent.new(_deps, {
 		canvas = GuiRefs.Get(inventoryGui, { "Inventory" }),
-		onItemClick = function(itemId: string, ...)
+		onStackClick = function(stackId: string, itemId: string)
 			-- Get current inventory data
 			local inventoryData = _deps.ReplicatedData:GetData("Inventory", true)
 			if not inventoryData then
-				warn("[InventoryController] onItemClick - no inventory data")
+				warn("[InventoryController] onStackClick - no inventory data")
 				return
 			end
 			
-			-- Check if item is already in hotbar
-			local itemSlot = nil
-			for slot, slotItemId in inventoryData.hotbar do
-				if slotItemId == itemId then
-					itemSlot = slot
+			-- Check if stack is already in hotbar
+			local stackSlot = nil
+			for slot, slotStackId in inventoryData.hotbar do
+				if slotStackId == stackId then
+					stackSlot = slot
 					break
 				end
 			end
 			
-			if itemSlot then
-				-- Item is in hotbar, remove it (send nil)
-				self._setHotbarSlotRemote:FireServer(itemSlot, nil)
-				print("[InventoryController] Removing", itemId, "from hotbar slot", itemSlot)
+			if stackSlot then
+				-- Stack is in hotbar, remove it (send nil)
+				self._setHotbarSlotRemote:FireServer(stackSlot, nil)
+				print("[InventoryController] Removing stack", stackId, "from hotbar slot", stackSlot)
 			else
-				-- Item not in hotbar, find first available slot and add it
+				-- Stack not in hotbar, find first available slot and add it
 				local firstAvailableSlot = nil
 				for slot = 1, inventoryData.hotbarSize do
 					if not inventoryData.hotbar[slot] then
@@ -148,8 +148,8 @@ function InventoryController:Init(deps: Deps)
 				end
 				
 				if firstAvailableSlot then
-					self._setHotbarSlotRemote:FireServer(firstAvailableSlot, itemId)
-					print("[InventoryController] Adding", itemId, "to hotbar slot", firstAvailableSlot)
+					self._setHotbarSlotRemote:FireServer(firstAvailableSlot, stackId)
+					print("[InventoryController] Adding stack", stackId, "to hotbar slot", firstAvailableSlot)
 				else
 					warn("[InventoryController] No available hotbar slots")
 					-- TODO: Show UI message to player

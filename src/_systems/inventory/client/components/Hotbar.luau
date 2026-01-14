@@ -37,13 +37,13 @@ export type HotbarAPI = {
 	_frame: Frame,
 	_hotbarSlots: { ItemSlot.ItemSlotAPI },
 	_equippedSlot: number?,
-	_hotbarData: { [number]: string? },
+	_hotbarData: { [number]: string? }, -- slot -> stackId
 	_inventoryOpen: boolean,
 
 	Init: (self: HotbarAPI) -> (),
 	Destroy: (self: HotbarAPI) -> (),
 	
-	Refresh: (self: HotbarAPI) -> (),
+	Refresh: (self: HotbarAPI, inventoryData: InventoryProfile?) -> (),
 	EquipSlot: (self: HotbarAPI, slotNumber: number) -> (),
 	ActivateEquippedSlot: (self: HotbarAPI) -> (),
 	SetInventoryOpen: (self: HotbarAPI, open: boolean) -> (),
@@ -52,7 +52,7 @@ export type HotbarAPI = {
 
 export type Opts = {
 	frame: Frame,
-	onActivate: (slotNumber: number, itemId: string) -> (), -- callback when item used
+	onActivate: (slotNumber: number, stackId: string, itemId: string) -> (), -- callback when item used
 	onRemove: (slotNumber: number) -> (), -- callback when X button clicked
 }
 
@@ -168,15 +168,25 @@ function Hotbar:ActivateEquippedSlot()
 		return
 	end
 	
-	local itemId = self._hotbarData[self._equippedSlot]
-	if not itemId then
+	local stackId = self._hotbarData[self._equippedSlot]
+	if not stackId then
 		warn("[Hotbar] ActivateEquippedSlot - equipped slot is empty")
+		return
+	end
+	
+	-- Get inventory data to find itemId for this stack
+	local inventoryData = self:_getInventoryData()
+	if not inventoryData then return end
+	
+	local stack = inventoryData.items[stackId]
+	if not stack then
+		warn("[Hotbar] ActivateEquippedSlot - stack not found:", stackId)
 		return
 	end
 	
 	-- Fire callback to controller
 	pcall(function()
-		self._opts.onActivate(self._equippedSlot, itemId)
+		self._opts.onActivate(self._equippedSlot, stackId, stack.itemId)
 	end)
 end
 
@@ -205,16 +215,16 @@ function Hotbar:UpdateSlot(slotNumber: number)
 	local slot = self._hotbarSlots[slotNumber]
 	if not slot then return end
 	
-	local itemId = self._hotbarData[slotNumber]
+	local stackId = self._hotbarData[slotNumber]
 	
-	if itemId then
-		-- Get item data from inventory
+	if stackId then
+		-- Get inventory data to find this stack
 		local inventoryData = self:_getInventoryData()
-		if inventoryData and inventoryData.items[itemId] then
-			local item = inventoryData.items[itemId]
-			slot:UpdateDisplay(itemId, item.quantity, true) -- true = in hotbar
+		if inventoryData and inventoryData.items[stackId] then
+			local stack = inventoryData.items[stackId]
+			slot:UpdateDisplay(stack.itemId, stack.quantity, true) -- true = in hotbar
 		else
-			-- Item not in inventory anymore, show empty
+			-- Stack not found in inventory anymore, show empty
 			slot:UpdateDisplay(nil, 0, false)
 		end
 	else
@@ -240,15 +250,12 @@ end
 ]]
 function Hotbar:_connectDataChanges()
 	local conn = _deps.ReplicatedData.OnUpdate.Event:Connect(function(category: string, data: any)
-		print("[Hotbar] ReplicatedData.OnUpdate fired - category:", category)
 		if category == "Inventory" then
-			print("[Hotbar] Calling Refresh() due to Inventory update")
 			self:Refresh(data)
 		end
 	end)
 	
 	table.insert(self._conns, conn)
-	print("[Hotbar] Connected to ReplicatedData.OnUpdate")
 end
 
 --[[

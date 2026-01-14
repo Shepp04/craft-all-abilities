@@ -30,7 +30,8 @@ export type Deps = {
 	Tunables: Tunables,
 }
 
-type FilteredItem = {
+type FilteredStack = {
+	stackId: string,
 	itemId: string,
 	quantity: number,
 	inHotbar: boolean,
@@ -40,11 +41,12 @@ export type InventoryAPI = {
 	_inited: boolean,
 	_conns: { RBXScriptConnection },
 	_opts: Opts,
+	_canvas: CanvasGroup,
 	_frame: Frame,
 	_scrollingFrame: ScrollingFrame,
 	_itemSlots: { ItemSlot.ItemSlotAPI },
 	_inventoryData: InventoryProfile?,
-	_hotbarSlots: { [number]: string? },
+	_hotbarStackIds: { [string]: boolean },
 	_isVisible: boolean,
 	_needsRefresh: boolean,
 	_tooltip: Frame?,
@@ -52,14 +54,14 @@ export type InventoryAPI = {
 	Init: (self: InventoryAPI) -> (),
 	Destroy: (self: InventoryAPI) -> (),
 
-	Refresh: (self: InventoryAPI) -> (), -- Rebuilds entire display from current data
-	SetVisible: (self: InventoryAPI, visible: boolean) -> (), -- Show/hide the inventory UI
-	UpdateSingleItem: (self: InventoryAPI, itemId: string) -> (), -- Update a single item slot by itemId
+	Refresh: (self: InventoryAPI, inventoryData: InventoryProfile?) -> (),
+	SetVisible: (self: InventoryAPI, visible: boolean) -> (),
+	GetCanvas: (self: InventoryAPI) -> CanvasGroup,
 }
 
 export type Opts = {
-	frame: Frame,
-	onItemClick: (itemId: string) -> (), -- callback to controller
+	canvas: CanvasGroup,
+	onStackClick: (stackId: string, itemId: string) -> (), -- callback to controller
 }
 
 local Inventory = {}
@@ -80,15 +82,15 @@ function Inventory.new(deps: Deps, opts: Opts): InventoryAPI
 	self._opts = opts
 	self._canvas = opts.canvas
 	self._frame = self._canvas:FindFirstChild("Frame") :: Frame
-
+	
 	if not self._frame then
-		error("[Inventory] Constructor - InventoryFrame not found in canvas")
+		error("[Inventory] Constructor - Frame not found in canvas")
 	end
-
+	
 	self._scrollingFrame = nil :: any -- Set in Init
 	self._itemSlots = {}
 	self._inventoryData = nil
-	self._hotbarSlots = {}
+	self._hotbarStackIds = {}
 	self._isVisible = false
 	self._needsRefresh = false
 	self._tooltip = nil
@@ -124,73 +126,47 @@ function Inventory:Refresh(inventoryData: InventoryProfile?)
 	-- Cache reference for internal use
 	self._inventoryData = inventoryData
 	
-	-- Cache hotbar for quick lookups
-	self._hotbarSlots = self._inventoryData.hotbar
-	
-	-- Get filtered items (placeable only)
-	local filteredItems = self:_getFilteredItems()
-	
-	-- Check if we need full rebuild (item count changed)
-	local needsRebuild = #filteredItems ~= #self._itemSlots
-	
-	if not needsRebuild then
-		-- Check if the same items are present (order might differ)
-		local currentItemIds = {}
-		for _, itemData in filteredItems do
-			currentItemIds[itemData.itemId] = true
-		end
-		
-		for _, slot in self._itemSlots do
-			if not currentItemIds[slot._itemId] then
-				needsRebuild = true
-				break
-			end
+	-- Build hotbar stackId set for quick lookups
+	self._hotbarStackIds = {}
+	for _, stackId in self._inventoryData.hotbar do
+		if stackId then
+			self._hotbarStackIds[stackId] = true
 		end
 	end
 	
-	if needsRebuild then
-		-- Full rebuild: destroy and recreate all slots
-		for _, slot in self._itemSlots do
-			slot:Destroy()
-		end
-		table.clear(self._itemSlots)
+	-- Get filtered stacks (non-hotbar placeable stacks only)
+	local filteredStacks = self:_getFilteredStacks()
+	
+	-- Always rebuild for simplicity with stacks
+	for _, slot in self._itemSlots do
+		slot:Destroy()
+	end
+	table.clear(self._itemSlots)
+	
+	-- Create new slots for each stack
+	for index, stackData in filteredStacks do
+		local slot = ItemSlot.new(_deps, {
+			itemId = stackData.itemId,
+			quantity = stackData.quantity,
+			slotIndex = index,
+			showInHotbar = stackData.inHotbar, -- Dim if in hotbar
+			containerType = "inventory",
+			onClick = function()
+				self:_handleStackClick(stackData.stackId, stackData.itemId)
+			end,
+		})
 		
-		-- Create new slots for each item
-		for index, itemData in filteredItems do
-			local slot = ItemSlot.new(_deps, {
-				itemId = itemData.itemId,
-				quantity = itemData.quantity,
-				slotIndex = index,
-				showInHotbar = itemData.inHotbar,
-				containerType = "inventory",
-				onClick = function(clickedItemId: string?)
-					self:_handleItemClick(clickedItemId)
-				end,
-			})
-			
-			slot:Init()
-			slot:GetFrame().Parent = self._scrollingFrame
-			
-			-- Set up hover tooltip
-			self:_setupTooltip(slot:GetFrame(), itemData.itemId)
-			
-			table.insert(self._itemSlots, slot)
-		end
-	else
-		-- Fast path: just update existing slots
-		for _, itemData in filteredItems do
-			-- Find the slot for this item
-			for _, slot in self._itemSlots do
-				if slot._itemId == itemData.itemId then
-					slot:UpdateDisplay(itemData.itemId, itemData.quantity, itemData.inHotbar)
-					break
-				end
-			end
-		end
+		slot:Init()
+		slot:GetFrame().Parent = self._scrollingFrame
+		
+		-- Set up hover tooltip
+		self:_setupTooltip(slot:GetFrame(), stackData.itemId)
+		
+		table.insert(self._itemSlots, slot)
 	end
 	
-	-- Show empty state if no items
-	if #filteredItems == 0 then
+	-- Show empty state if no stacks
+	if #filteredStacks == 0 then
 		self:_showEmptyState()
 	else
 		self:_hideEmptyState()
@@ -214,7 +190,7 @@ function Inventory:SetVisible(visible: boolean)
 			self:Refresh()
 		end
 		
-		-- Show inventory canvas
+		-- Show inventory
 		self._canvas.Visible = true
 	else
 		-- Hide inventory
@@ -269,41 +245,55 @@ function Inventory:_getInventoryData(): InventoryProfile?
 end
 
 --[[
-	_getFilteredItems
-	Returns array of placeable items with their data.
+	_getFilteredStacks
+	Returns array of placeable stacks that are NOT in the hotbar.
 ]]
-function Inventory:_getFilteredItems(): { FilteredItem }
+function Inventory:_getFilteredStacks(): { FilteredStack }
 	if not self._inventoryData then
 		return {}
 	end
 	
-	local filtered: { FilteredItem } = {}
+	local filtered: { FilteredStack } = {}
 	
-	-- Iterate through all items in inventory
-	for itemId, itemData in self._inventoryData.items do
+	-- Iterate through all stacks in inventory
+	for stackId, stack in self._inventoryData.items do
 		-- Fetch item definition from GameData
-		local itemInfo = _deps.GameData.Get("Items", itemId)
+		local itemInfo = _deps.GameData.Get("Items", stack.itemId)
 		
-		-- Filter
+		-- Filter out ingredients
 		if itemInfo and itemInfo.type ~= "ingredient" then
-			-- Check if item is in hotbar
-			local inHotbar = self:_isItemInHotbar(itemId)
+			-- Check if stack is in hotbar
+			local inHotbar = self._hotbarStackIds[stackId] == true
 			
 			table.insert(filtered, {
-				itemId = itemId,
-				quantity = itemData.quantity,
+				stackId = stackId,
+				itemId = stack.itemId,
+				quantity = stack.quantity,
 				inHotbar = inHotbar,
 			})
 		end
 	end
 	
-	-- Sort alphabetically by name
+	-- Sort for deterministic ordering: alphabetically by name, then by quantity (descending), then by stackId
 	table.sort(filtered, function(a, b)
 		local aInfo = _deps.GameData.Get("Items", a.itemId)
 		local bInfo = _deps.GameData.Get("Items", b.itemId)
+		
 		if aInfo and bInfo then
-			return aInfo.name < bInfo.name
+			-- Primary sort: item name
+			if aInfo.name ~= bInfo.name then
+				return aInfo.name < bInfo.name
+			end
+			
+			-- Secondary sort: quantity descending (fuller stacks first)
+			if a.quantity ~= b.quantity then
+				return a.quantity > b.quantity
+			end
+			
+			-- Tertiary sort: stackId (deterministic)
+			return a.stackId < b.stackId
 		end
+		
 		return false
 	end)
 	
@@ -311,28 +301,13 @@ function Inventory:_getFilteredItems(): { FilteredItem }
 end
 
 --[[
-	_isItemInHotbar
-	Checks if an item is currently equipped in any hotbar slot.
+	_handleStackClick
+	Callback when player clicks a stack slot.
 ]]
-function Inventory:_isItemInHotbar(itemId: string): boolean
-	for _, slotItemId in self._hotbarSlots do
-		if slotItemId == itemId then
-			return true
-		end
-	end
-	return false
-end
-
---[[
-	_handleItemClick
-	Callback when player clicks an item slot.
-]]
-function Inventory:_handleItemClick(itemId: string?)
-	if not itemId then return end
-	
+function Inventory:_handleStackClick(stackId: string, itemId: string)
 	-- Delegate to controller
 	pcall(function()
-		self._opts.onItemClick(itemId)
+		self._opts.onStackClick(stackId, itemId)
 	end)
 end
 
@@ -564,7 +539,7 @@ function Inventory:Destroy()
 	
 	-- Clear cached data
 	self._inventoryData = nil
-	table.clear(self._hotbarSlots)
+	table.clear(self._hotbarStackIds)
 	
 	self._inited = false
 end

@@ -23,21 +23,20 @@
 ]]
 
 -- // Roblox Services
+local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 -- // Types (custom)
-export type InventoryItem = {
+export type ItemStack = {
 	itemId: string,
 	quantity: number,
-	-- instances used for non-stackable items
-	instances: { [string]: any }?, -- instanceId -> instance data
 }
 
 export type InventoryProfile = {
 	version: number,
-	items: { [string]: InventoryItem }, -- itemId -> InventoryItem
-	hotbar: { [number]: string? }, -- hotbar slot index -> itemId?
+	items: { [string]: ItemStack }, -- stackId -> ItemStack
+	hotbar: { [number]: string? }, -- hotbar slot index -> stackId?
 	hotbarSize: number,
 }
 
@@ -77,9 +76,10 @@ export type InventoryServiceAPI = {
 	AddItem: (self: InventoryServiceAPI, player: Player, itemId: string, quantity: number) -> boolean,
 	RemoveItem: (self: InventoryServiceAPI, player: Player, itemId: string, quantity: number) -> boolean,
 	GetItemCount: (self: InventoryServiceAPI, player: Player, itemId: string) -> number,
-	SetHotbarSlot: (self: InventoryServiceAPI, player: Player, slot: number, itemId: string?) -> boolean,
+	SetHotbarSlot: (self: InventoryServiceAPI, player: Player, slot: number, stackId: string?) -> boolean,
 	GetHotbarSlot: (self: InventoryServiceAPI, player: Player, slot: number) -> string?,
 	CanAddItem: (self: InventoryServiceAPI, player: Player, itemId: string, quantity: number) -> boolean,
+	GetStacksForItem: (self: InventoryServiceAPI, player: Player, itemId: string) -> { [string]: ItemStack },
 }
 
 local InventoryService = {
@@ -98,6 +98,7 @@ local _deps: Deps?
 --[[
 	AddItem
 	Adds items to a player's inventory with validation and stack limit checks.
+	Automatically creates new stacks when existing stacks are full.
 
 	@param player: Player, The player to add items to
 	@param itemId: string, The item ID from GameData.Items
@@ -124,24 +125,44 @@ function InventoryService:AddItem(player: Player, itemId: string, quantity: numb
 		return false
 	end
 
-	-- Check stack limits
 	local maxStack = itemInfo.maxStack or math.huge
-	local currentItem = inventoryProfile.items[itemId]
-	local currentQuantity = currentItem and currentItem.quantity or 0
+	local remaining = quantity
 
-	if currentQuantity + quantity > maxStack then
-		warn("[InventoryService] AddItem - exceeding max stack for itemId:", itemId, "current:", currentQuantity, "adding:", quantity, "maxStack:", maxStack)
-		return false
+	-- Find all existing stacks for this item
+	local existingStacks = {}
+	for stackId, stack in inventoryProfile.items do
+		if stack.itemId == itemId then
+			table.insert(existingStacks, { stackId = stackId, stack = stack })
+		end
 	end
 
-	-- Add or update item
-	if currentItem then
-		currentItem.quantity += quantity
-	else
-		inventoryProfile.items[itemId] = {
+	-- Try to fill incomplete stacks first
+	for _, stackData in existingStacks do
+		if remaining <= 0 then break end
+		
+		local stack = stackData.stack
+		local available = maxStack - stack.quantity
+		
+		if available > 0 then
+			local toAdd = math.min(available, remaining)
+			stack.quantity += toAdd
+			remaining -= toAdd
+			print("[InventoryService] Added", toAdd, "to existing stack", stackData.stackId)
+		end
+	end
+
+	-- Create new stacks for remaining items
+	while remaining > 0 do
+		local toAdd = math.min(maxStack, remaining)
+		local newStackId = self:_generateStackId()
+		
+		inventoryProfile.items[newStackId] = {
 			itemId = itemId,
-			quantity = quantity,
+			quantity = toAdd,
 		}
+		
+		remaining -= toAdd
+		print("[InventoryService] Created new stack", newStackId, "with", toAdd, "x", itemId)
 	end
 
 	print("[InventoryService] Added", quantity, "x", itemId, "to", player.Name)
@@ -150,7 +171,8 @@ end
 
 --[[
 	RemoveItem
-	Removes items from a player's inventory. Auto-clears from hotbar if quantity reaches 0.
+	Removes items from a player's inventory. Prioritizes non-hotbar stacks first.
+	Auto-clears from hotbar if stack is depleted.
 
 	@param player: Player, The player to remove items from
 	@param itemId: string, The item ID from GameData.Items
@@ -170,31 +192,75 @@ function InventoryService:RemoveItem(player: Player, itemId: string, quantity: n
 		return false
 	end
 
-	-- Check if player has the item
-	local currentItem = inventoryProfile.items[itemId]
-	if not currentItem then
-		warn("[InventoryService] RemoveItem - player does not have itemId:", itemId)
+	-- Check if player has enough total quantity
+	local totalCount = self:GetItemCount(player, itemId)
+	if totalCount < quantity then
+		warn("[InventoryService] RemoveItem - not enough quantity for itemId:", itemId, "has:", totalCount, "trying to remove:", quantity)
 		return false
 	end
 
-	-- Check if the player has enough
-	if currentItem.quantity < quantity then
-		warn("[InventoryService] RemoveItem - not enough quantity to remove for itemId:", itemId, "has:", currentItem.quantity, "trying to remove:", quantity)
-		return false
+	-- Get all stacks for this item, separated by hotbar/non-hotbar
+	local hotbarStackIds = {}
+	for _, stackId in inventoryProfile.hotbar do
+		if stackId then
+			hotbarStackIds[stackId] = true
+		end
 	end
 
-	-- Remove quantity
-	currentItem.quantity -= quantity
-
-	-- Remove item entry if quantity reaches 0
-	if currentItem.quantity <= 0 then
-		inventoryProfile.items[itemId] = nil
-
-		-- Also clear from hotbar if present
-		for slor, slotItemId in inventoryProfile.hotbar do
-			if slotItemId == itemId then
-				inventoryProfile.hotbar[slor] = nil
+	local nonHotbarStacks = {}
+	local hotbarStacks = {}
+	
+	for stackId, stack in inventoryProfile.items do
+		if stack.itemId == itemId then
+			if hotbarStackIds[stackId] then
+				table.insert(hotbarStacks, { stackId = stackId, stack = stack })
+			else
+				table.insert(nonHotbarStacks, { stackId = stackId, stack = stack })
 			end
+		end
+	end
+
+	local remaining = quantity
+
+	-- Remove from non-hotbar stacks first
+	for _, stackData in nonHotbarStacks do
+		if remaining <= 0 then break end
+		
+		local stack = stackData.stack
+		local toRemove = math.min(stack.quantity, remaining)
+		
+		stack.quantity -= toRemove
+		remaining -= toRemove
+		
+		-- Delete empty stacks
+		if stack.quantity <= 0 then
+			inventoryProfile.items[stackData.stackId] = nil
+			print("[InventoryService] Deleted empty stack", stackData.stackId)
+		end
+	end
+
+	-- If still need to remove more, take from hotbar stacks
+	for _, stackData in hotbarStacks do
+		if remaining <= 0 then break end
+		
+		local stack = stackData.stack
+		local toRemove = math.min(stack.quantity, remaining)
+		
+		stack.quantity -= toRemove
+		remaining -= toRemove
+		
+		-- Delete empty stacks and clear from hotbar
+		if stack.quantity <= 0 then
+			inventoryProfile.items[stackData.stackId] = nil
+			
+			-- Clear from hotbar
+			for slot, slotStackId in inventoryProfile.hotbar do
+				if slotStackId == stackData.stackId then
+					inventoryProfile.hotbar[slot] = nil
+				end
+			end
+			
+			print("[InventoryService] Deleted empty hotbar stack", stackData.stackId)
 		end
 	end
 
@@ -204,12 +270,12 @@ end
 
 --[[
 	GetItemCount
-	Returns the quantity of a specific item in the player's inventory.
+	Returns the total quantity of a specific item across all stacks.
 
 	@param player: Player, The player to check
 	@param itemId: string, The item ID from GameData.Items
 
-	@return quantity: number, The item quantity (0 if not owned)
+	@return quantity: number, The total item quantity (0 if not owned)
 ]]
 function InventoryService:GetItemCount(player: Player, itemId: string): number
 	-- Get inventory profile
@@ -218,21 +284,27 @@ function InventoryService:GetItemCount(player: Player, itemId: string): number
 		return 0
 	end
 
-	local item = inventoryProfile.items[itemId]
-	return item and item.quantity or 0
+	local total = 0
+	for _, stack in inventoryProfile.items do
+		if stack.itemId == itemId then
+			total += stack.quantity
+		end
+	end
+
+	return total
 end
 
 --[[
 	SetHotbarSlot
-	Equips an item to a hotbar slot. Only placeable items allowed. Pass nil to clear.
+	Equips a stack to a hotbar slot. Only placeable items allowed. Pass nil to clear.
 
 	@param player: Player, The player whose hotbar to modify
 	@param slot: number, The hotbar slot number (1 to hotbarSize)
-	@param itemId: string?, The item ID to equip (nil to clear slot)
+	@param stackId: string?, The stack ID to equip (nil to clear slot)
 
 	@return success: boolean, True if hotbar slot was set successfully
 ]]
-function InventoryService:SetHotbarSlot(player: Player, slot: number, itemId: string?): boolean
+function InventoryService:SetHotbarSlot(player: Player, slot: number, stackId: string?): boolean
 	-- Get inventory profile
 	local inventoryProfile = self:_getInventoryProfile(player)
 	if not inventoryProfile then
@@ -245,46 +317,40 @@ function InventoryService:SetHotbarSlot(player: Player, slot: number, itemId: st
 		return false
 	end
 
-	-- If clearing the slot (itemId is nil)
-	if not itemId then
+	-- If clearing the slot (stackId is nil)
+	if not stackId then
 		inventoryProfile.hotbar[slot] = nil
 		print("[InventoryService] Cleared hotbar slot", slot, "for", player.Name)
 		return true
 	end
 
-	-- Validate item exists in GameData
-	local itemInfo = _deps.GameData.Get("Items", itemId)
-	if not itemInfo then
-		warn("[InventoryService] SetHotbarSlot - invalid itemId:", itemId)
+	-- Validate stack exists
+	local stack = inventoryProfile.items[stackId]
+	if not stack then
+		warn("[InventoryService] SetHotbarSlot - invalid stackId:", stackId)
 		return false
 	end
 
-	-- Validate item is allowed in hotbar (e.g. not an ingredient)
-	if not self:_isItemValidForHotbar(itemId) then
-		warn("[InventoryService] SetHotbarSlot - itemId not valid for hotbar:", itemId)
-		return false
-	end
-
-	-- Check the player owns it
-	if self:GetItemCount(player, itemId) <= 0 then
-		warn("[InventoryService] SetHotbarSlot - player does not own itemId:", itemId)
+	-- Validate item is allowed in hotbar
+	if not self:_isItemValidForHotbar(stack.itemId) then
+		warn("[InventoryService] SetHotbarSlot - item not valid for hotbar:", stack.itemId)
 		return false
 	end
 
 	-- Set hotbar reference
-	inventoryProfile.hotbar[slot] = itemId
-	print("[InventoryService] Set hotbar slot", slot, "to", itemId, "for", player.Name)
+	inventoryProfile.hotbar[slot] = stackId
+	print("[InventoryService] Set hotbar slot", slot, "to", stackId, "for", player.Name)
 	return true
 end
 
 --[[
 	GetHotbarSlot
-	Returns the item ID equipped in a specific hotbar slot.
+	Returns the stack ID equipped in a specific hotbar slot.
 
 	@param player: Player, The player whose hotbar to check
 	@param slot: number, The hotbar slot number (1 to hotbarSize)
 
-	@return itemId: string?, The item ID in the slot (nil if empty or invalid)
+	@return stackId: string?, The stack ID in the slot (nil if empty or invalid)
 ]]
 function InventoryService:GetHotbarSlot(player: Player, slot: number): string?
 	-- Get inventory profile
@@ -304,13 +370,13 @@ end
 
 --[[
 	CanAddItem
-	Checks if items can be added without exceeding stack limits. Non-mutating.
+	Checks if items can be added. Always true now since we create multiple stacks.
 
 	@param player: Player, The player to check
 	@param itemId: string, The item ID from GameData.Items
 	@param quantity: number, The amount to check
 
-	@return canAdd: boolean, True if items can be added within limits
+	@return canAdd: boolean, True if items can be added
 ]]
 function InventoryService:CanAddItem(player: Player, itemId: string, quantity: number): boolean
 	if quantity <= 0 then
@@ -323,21 +389,46 @@ function InventoryService:CanAddItem(player: Player, itemId: string, quantity: n
 		return false
 	end
 
-	-- Get inventory profile
+	-- With multiple stacks, we can always add items
+	return true
+end
+
+--[[
+	GetStacksForItem
+	Returns all stacks for a specific item.
+
+	@param player: Player, The player whose inventory to check
+	@param itemId: string, The item ID from GameData.Items
+
+	@return stacks: { [string]: ItemStack }, Dictionary of stackId -> ItemStack
+]]
+function InventoryService:GetStacksForItem(player: Player, itemId: string): { [string]: ItemStack }
 	local inventoryProfile = self:_getInventoryProfile(player)
 	if not inventoryProfile then
-		return false
+		return {}
 	end
 
-	-- Check stack limits
-	local maxStack = itemInfo.maxStack or math.huge
-	local currentItem = inventoryProfile.items[itemId]
-	local currentQuantity = currentItem and currentItem.quantity or 0
+	local stacks = {}
+	for stackId, stack in inventoryProfile.items do
+		if stack.itemId == itemId then
+			stacks[stackId] = stack
+		end
+	end
 
-	return (currentQuantity + quantity) <= maxStack
+	return stacks
 end
 
 -- ========== Internal ========== --
+
+--[[
+	_generateStackId
+	Generates a unique stack ID using UUID.
+
+	@return stackId: string, A unique stack identifier
+]]
+function InventoryService:_generateStackId(): string
+	return HttpService:GenerateGUID(false)
+end
 
 --[[
 	_getInventoryProfile
@@ -374,7 +465,7 @@ function InventoryService:_isItemValidForHotbar(itemId: string): boolean
 	end
 
 	-- Validate item is allowed in hotbar (e.g. not an ingredient)
-	if itemInfo.type == "Ingredient" then
+	if itemInfo.type == "ingredient" then
 		return false
 	end
 
@@ -392,13 +483,12 @@ function InventoryService:Init(deps: Deps)
 	-- // Register reconcile section
 	_deps.DataInterface:RegisterReconcileSection("Data", "Inventory", {
 		version = 1 :: number,
-		-- items indexed by itemId, instances of that itemId indexed by unique instanceId
 		items = {
-			["default_item"] = { quantity = 1 }
-		} :: { [string]: InventoryItem }, -- itemId -> quantity
+			["default_stack_starter"] = { itemId = "default_item", quantity = 1 }
+		} :: { [string]: ItemStack }, -- stackId -> ItemStack
 		hotbar = {
 			-- NOTE: ingredients never referenced here
-		} :: { [number]: string? }, -- hotbar slot index -> itemId?
+		} :: { [number]: string? }, -- hotbar slot index -> stackId?
 		hotbarSize = 9 :: number,
 	} :: InventoryProfile)
 
@@ -411,10 +501,10 @@ function InventoryService:Start()
 	self._started = true
 
 	-- // Connect remotes
-	table.insert(self._conns, self._setHotbarSlotRemote.OnServerEvent:Connect(function(player: Player, slot: number, itemId: string?)
-		local success = self:SetHotbarSlot(player, slot, itemId)
+	table.insert(self._conns, self._setHotbarSlotRemote.OnServerEvent:Connect(function(player: Player, slot: number, stackId: string?)
+		local success = self:SetHotbarSlot(player, slot, stackId)
 		if not success then
-			warn("[InventoryService] Failed to set hotbar slot via remote for player:", player.Name, "slot:", slot, "itemId:", itemId)
+			warn("[InventoryService] Failed to set hotbar slot via remote for player:", player.Name, "slot:", slot, "stackId:", stackId)
 		end
 	end))
 end
