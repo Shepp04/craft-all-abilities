@@ -21,6 +21,12 @@ local Sounds: SoundsConfig = {
 			rolloffMaxDistance = 50,
 			volume = 1.00, -- [0.00, 1.00]
         },
+        UIHover01 = {
+            id = "rbxassetid://90734678843285",
+            playbackSpeed = 0.90,
+            rolloffMaxDistance = 50,
+            volume = 1.00, -- [0.00, 1.00]
+        }
     },
     Get = function(self: SoundsConfig, name: string)
         if self.sounds[name] then

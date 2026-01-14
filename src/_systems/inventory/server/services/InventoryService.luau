@@ -248,6 +248,7 @@ function InventoryService:SetHotbarSlot(player: Player, slot: number, itemId: st
 	-- If clearing the slot (itemId is nil)
 	if not itemId then
 		inventoryProfile.hotbar[slot] = nil
+		print("[InventoryService] Cleared hotbar slot", slot, "for", player.Name)
 		return true
 	end
 
@@ -272,6 +273,7 @@ function InventoryService:SetHotbarSlot(player: Player, slot: number, itemId: st
 
 	-- Set hotbar reference
 	inventoryProfile.hotbar[slot] = itemId
+	print("[InventoryService] Set hotbar slot", slot, "to", itemId, "for", player.Name)
 	return true
 end
 
@@ -399,13 +401,22 @@ function InventoryService:Init(deps: Deps)
 		} :: { [number]: string? }, -- hotbar slot index -> itemId?
 		hotbarSize = 9 :: number,
 	} :: InventoryProfile)
+
+	-- // Create remotes
+	self._setHotbarSlotRemote = _deps.SharedPackages.Remotes:GetRemote("RemoteEvent", "SetHotbarSlot") :: RemoteEvent
 end
 
 function InventoryService:Start()
 	if not self._inited or self._started then return end
 	self._started = true
 
-	-- // Example: connect remotes, start loops, etc.
+	-- // Connect remotes
+	table.insert(self._conns, self._setHotbarSlotRemote.OnServerEvent:Connect(function(player: Player, slot: number, itemId: string?)
+		local success = self:SetHotbarSlot(player, slot, itemId)
+		if not success then
+			warn("[InventoryService] Failed to set hotbar slot via remote for player:", player.Name, "slot:", slot, "itemId:", itemId)
+		end
+	end))
 end
 
 function InventoryService:Destroy()
