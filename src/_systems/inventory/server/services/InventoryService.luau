@@ -75,7 +75,9 @@ export type InventoryServiceAPI = {
 
 	AddItem: (self: InventoryServiceAPI, player: Player, itemId: string, quantity: number) -> boolean,
 	RemoveItem: (self: InventoryServiceAPI, player: Player, itemId: string, quantity: number) -> boolean,
+	RemoveItemFromStack: (self: InventoryServiceAPI, player: Player, stackId: string, quantity: number) -> boolean,
 	GetItemCount: (self: InventoryServiceAPI, player: Player, itemId: string) -> number,
+	GetStack: (self: InventoryServiceAPI, player: Player, stackId: string) -> ItemStack?,
 	SetHotbarSlot: (self: InventoryServiceAPI, player: Player, slot: number, stackId: string?) -> boolean,
 	GetHotbarSlot: (self: InventoryServiceAPI, player: Player, slot: number) -> string?,
 	CanAddItem: (self: InventoryServiceAPI, player: Player, itemId: string, quantity: number) -> boolean,
@@ -147,7 +149,7 @@ function InventoryService:AddItem(player: Player, itemId: string, quantity: numb
 			local toAdd = math.min(available, remaining)
 			stack.quantity += toAdd
 			remaining -= toAdd
-			print("[InventoryService] Added", toAdd, "to existing stack", stackData.stackId)
+			-- print("[InventoryService] Added", toAdd, "to existing stack", stackData.stackId)
 		end
 	end
 
@@ -162,10 +164,10 @@ function InventoryService:AddItem(player: Player, itemId: string, quantity: numb
 		}
 		
 		remaining -= toAdd
-		print("[InventoryService] Created new stack", newStackId, "with", toAdd, "x", itemId)
+		-- print("[InventoryService] Created new stack", newStackId, "with", toAdd, "x", itemId)
 	end
 
-	print("[InventoryService] Added", quantity, "x", itemId, "to", player.Name)
+	-- print("[InventoryService] Added", quantity, "x", itemId, "to", player.Name)
 	return true
 end
 
@@ -235,7 +237,7 @@ function InventoryService:RemoveItem(player: Player, itemId: string, quantity: n
 		-- Delete empty stacks
 		if stack.quantity <= 0 then
 			inventoryProfile.items[stackData.stackId] = nil
-			print("[InventoryService] Deleted empty stack", stackData.stackId)
+			--print("[InventoryService] Deleted empty stack", stackData.stackId)
 		end
 	end
 
@@ -260,11 +262,64 @@ function InventoryService:RemoveItem(player: Player, itemId: string, quantity: n
 				end
 			end
 			
-			print("[InventoryService] Deleted empty hotbar stack", stackData.stackId)
+			-- print("[InventoryService] Deleted empty hotbar stack", stackData.stackId)
 		end
 	end
 
-	print("[InventoryService] Removed", quantity, "x", itemId, "from", player.Name)
+	-- print("[InventoryService] Removed", quantity, "x", itemId, "from", player.Name)
+	return true
+end
+
+--[[
+	RemoveItemFromStack
+	Removes a specific quantity from a given stackId.
+
+	@param player: Player, The player whose inventory to modify
+	@param stackId: string, The stack ID to remove items from
+	@param quantity: number, The amount to remove (must be positive)
+
+	@return success: boolean, True if items were removed successfully
+]]
+function InventoryService:RemoveItemFromStack(player: Player, stackId: string, quantity: number): boolean
+	-- Get inventory profile
+	local inventoryProfile = self:_getInventoryProfile(player)
+	if not inventoryProfile then
+		return false
+	end
+
+	local stack = inventoryProfile.items[stackId]
+	if not stack then
+		warn("[InventoryService] RemoveItemFromStack - invalid stackId:", stackId)
+		return false
+	end
+
+	if quantity <= 0 then
+		warn("[InventoryService] RemoveItemFromStack - quantity must be positive:", quantity)
+		return false
+	end
+
+	if stack.quantity < quantity then
+		warn("[InventoryService] RemoveItemFromStack - not enough quantity in stack:", stackId, "has:", stack.quantity, "trying to remove:", quantity)
+		return false
+	end
+
+	stack.quantity -= quantity
+
+	-- Delete empty stacks and clear from hotbar
+	if stack.quantity <= 0 then
+		inventoryProfile.items[stackId] = nil
+		
+		-- Clear from hotbar
+		for slot, slotStackId in inventoryProfile.hotbar do
+			if slotStackId == stackId then
+				inventoryProfile.hotbar[slot] = nil
+			end
+		end
+		
+		-- print("[InventoryService] Deleted empty stack", stackId)
+	end
+
+	-- print("[InventoryService] Removed", quantity, "from stack", stackId, "for", player.Name)
 	return true
 end
 
@@ -295,6 +350,25 @@ function InventoryService:GetItemCount(player: Player, itemId: string): number
 end
 
 --[[
+	GetStack
+	Returns a specific item stack by its stackId.
+
+	@param player: Player, The player whose inventory to check
+	@param stackId: string, The stack ID to retrieve
+
+	@return stack: ItemStack?, The item stack (nil if not found)
+]]
+function InventoryService:GetStack(player: Player, stackId: string): ItemStack?
+	-- Get inventory profile
+	local inventoryProfile = self:_getInventoryProfile(player)
+	if not inventoryProfile then
+		return nil
+	end
+
+	return inventoryProfile.items[stackId]
+end
+
+--[[
 	SetHotbarSlot
 	Equips a stack to a hotbar slot. Only placeable items allowed. Pass nil to clear.
 
@@ -320,7 +394,7 @@ function InventoryService:SetHotbarSlot(player: Player, slot: number, stackId: s
 	-- If clearing the slot (stackId is nil)
 	if not stackId then
 		inventoryProfile.hotbar[slot] = nil
-		print("[InventoryService] Cleared hotbar slot", slot, "for", player.Name)
+		-- print("[InventoryService] Cleared hotbar slot", slot, "for", player.Name)
 		return true
 	end
 
@@ -339,7 +413,7 @@ function InventoryService:SetHotbarSlot(player: Player, slot: number, stackId: s
 
 	-- Set hotbar reference
 	inventoryProfile.hotbar[slot] = stackId
-	print("[InventoryService] Set hotbar slot", slot, "to", stackId, "for", player.Name)
+	-- print("[InventoryService] Set hotbar slot", slot, "to", stackId, "for", player.Name)
 	return true
 end
 

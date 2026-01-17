@@ -110,7 +110,7 @@ function ItemSlot:UpdateDisplay(itemId: string?, quantity: number?, showInHotbar
 		end
 		
 		-- Handle icon (asset or emoji)
-		if itemInfo.icon and string.sub(itemInfo.icon, 1, 12) == "rbxassetid://" then
+		if itemInfo.icon and string.sub(itemInfo.icon, 1, 13) == "rbxassetid://" then
 			self._frame.Button.ItemIcon.ItemImageIcon.Image = itemInfo.icon
 			self._frame.Button.ItemIcon.ItemImageIcon.Visible = true
 			self._frame.Button.ItemIcon.ItemTextIcon.Text = ""
@@ -121,9 +121,6 @@ function ItemSlot:UpdateDisplay(itemId: string?, quantity: number?, showInHotbar
 			self._frame.Button.ItemIcon.ItemTextIcon.Text = itemInfo.icon or "?"
 			self._frame.Button.ItemIcon.ItemTextIcon.Visible = true
 		end
-		
-		-- Show slot as filled
-		self._frame.Button.BackgroundTransparency = 0.5
 	else
 		-- Empty slot
 		self._frame.Button.ItemName.Text = ""
@@ -131,20 +128,43 @@ function ItemSlot:UpdateDisplay(itemId: string?, quantity: number?, showInHotbar
 		self._frame.Button.ItemIcon.ItemImageIcon.Visible = false
 		self._frame.Button.ItemIcon.ItemTextIcon.Text = ""
 		self._frame.Button.ItemIcon.ItemTextIcon.Visible = false
-		self._frame.Button.BackgroundTransparency = 0.8
 	end
 
 	-- Update quantity
 	self._frame.Button.Quantity.Text = if self._quantity and self._quantity > 1 then "x" .. tostring(self._quantity) else ""
+
+	-- Update glow
+	local glow = self._frame.Button:FindFirstChild("Glow") :: ImageLabel?
+	if glow then
+		if itemInfo then
+			glow.ImageColor3 = itemInfo.textData and itemInfo.textData.nameColor or Color3.fromRGB(255, 255, 255)
+			-- Make colours (not white) more vivid
+			glow.ImageTransparency = glow.ImageColor3 == Color3.fromRGB(255, 255, 255) and 0.8 or 0.2
+		else
+			glow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+			glow.ImageTransparency = 0.6
+		end
+	end
 
 	-- Update hotbar indicator (e.g. black-out)
 	if self._opts.containerType == "inventory" then
 		-- toggle black-out (dim if not shown in hotbar)
 		self._frame.Button.ItemIcon.ItemImageIcon.UIGradient.Enabled = self._showInHotbar
 		self._frame.Button.ItemIcon.ItemTextIcon.UIGradient.Enabled = self._showInHotbar
+
+		local glow = self._frame.Button:FindFirstChild("Glow") :: ImageLabel?
+		if glow then
+			if self._showInHotbar then
+				glow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+				glow.ImageTransparency = 1.0
+			else
+				glow.ImageColor3 = itemInfo and (itemInfo.textData and itemInfo.textData.nameColor) or Color3.fromRGB(255, 255, 255)
+				-- Make colours (not white) more vivid
+				glow.ImageTransparency = glow.ImageColor3 == Color3.fromRGB(255, 255, 255) and 0.8 or 0.2
+			end
+		end
 	elseif self._opts.containerType == "hotbar" then
-		-- Show border when slot is filled
-		self._frame.Button.UIStroke.Enabled = itemInfo ~= nil
+
 	end
 end
 
@@ -169,8 +189,8 @@ end
 function ItemSlot:SetSelectedVisuals(selected: boolean)
 	local uiStroke = self._frame.Button:FindFirstChildOfClass("UIStroke") :: UIStroke?
 	if uiStroke then
-		uiStroke.Thickness = if selected then 4 else 2 -- 255, 255, 100
-		uiStroke.Color = if selected then Color3.fromRGB(255, 215, 0) else Color3.fromRGB(200, 200, 200)
+		uiStroke.Thickness = if selected then 4 else 3 -- 255, 255, 100
+		uiStroke.Color = if selected then Color3.fromRGB(255, 215, 0) else Color3.fromRGB(0, 0, 0)
 		-- uiStroke.Enabled = selected
 	end
 end
@@ -223,16 +243,16 @@ function ItemSlot:Init()
 		buttonFrame.Name = "Button"
 		buttonFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 		buttonFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-		buttonFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		buttonFrame.BackgroundTransparency = 0.2
+		buttonFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+		buttonFrame.BackgroundTransparency = 0.4
 		buttonFrame.Size = UDim2.new(1, -5, 1, -5)
 		buttonFrame.ZIndex = 1
 		buttonFrame.Parent = self._frame
 
 		local uiStroke = Instance.new("UIStroke")
-		uiStroke.Color = Color3.fromRGB(200, 200, 200)
-		uiStroke.Thickness = 2
-		uiStroke.Enabled = false
+		uiStroke.Color = Color3.fromRGB(0, 0, 0)
+		uiStroke.Thickness = 3
+		uiStroke.Enabled = true
 		uiStroke.Parent = buttonFrame
 
 		local uiCorner = Instance.new("UICorner")
@@ -272,7 +292,7 @@ function ItemSlot:Init()
 		iconTextLabel.BackgroundTransparency = 1
 		iconTextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 		iconTextLabel.TextScaled = true
-		iconTextLabel.Font = Enum.Font.SourceSansBold
+		iconTextLabel.Font = Enum.Font.MontserratBold
 		iconTextLabel.Text = ""
 		iconTextLabel.ZIndex = 1
 		iconTextLabel.Parent = itemIcon
@@ -284,29 +304,40 @@ function ItemSlot:Init()
 
 		local nameLabel = Instance.new("TextLabel")
 		nameLabel.Name = "ItemName"
-		nameLabel.Size = UDim2.new(1, -4, 0.2, 0)
-		nameLabel.Position = UDim2.new(0, 2, 0, 0)
+		nameLabel.AnchorPoint = Vector2.new(0.5, 0)
+		nameLabel.Size = UDim2.new(1, 0, 0.3, 0)
+		nameLabel.Position = UDim2.new(0.5, 0, 0, 5)
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 		nameLabel.TextScaled = true
-		nameLabel.Font = Enum.Font.SourceSansBold
+		nameLabel.Font = Enum.Font.MontserratBold
 		nameLabel.Text = ""
 		nameLabel.ZIndex = 1
 		nameLabel.Parent = buttonFrame
 
+		local nameLabelUIStroke = Instance.new("UIStroke")
+		nameLabelUIStroke.Color = Color3.fromRGB(0, 0, 0)
+		nameLabelUIStroke.Thickness = 2
+		nameLabelUIStroke.Parent = nameLabel
+
 		local quantityLabel = Instance.new("TextLabel")
 		quantityLabel.Name = "Quantity"
-		quantityLabel.Size = UDim2.new(0.5, 0, 0.25, 0)
-		quantityLabel.Position = UDim2.new(1, -2, 1, -2)
+		quantityLabel.Size = UDim2.new(1, -5, 0.3, 0)
+		quantityLabel.Position = UDim2.new(1, -5, 1, -5)
 		quantityLabel.AnchorPoint = Vector2.new(1, 1)
 		quantityLabel.BackgroundTransparency = 1
 		quantityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 		quantityLabel.TextScaled = true
-		quantityLabel.Font = Enum.Font.SourceSansBold
+		quantityLabel.Font = Enum.Font.MontserratBold
 		quantityLabel.TextXAlignment = Enum.TextXAlignment.Right
 		quantityLabel.Text = ""
 		quantityLabel.ZIndex = 1
 		quantityLabel.Parent = buttonFrame
+
+		local quantityLabelUIStroke = Instance.new("UIStroke")
+		quantityLabelUIStroke.Color = Color3.fromRGB(0, 0, 0)
+		quantityLabelUIStroke.Thickness = 2
+		quantityLabelUIStroke.Parent = quantityLabel
 
 		local slotLabel = Instance.new("TextLabel")
 		slotLabel.Name = "SlotIndex"
@@ -316,13 +347,26 @@ function ItemSlot:Init()
 		slotLabel.BackgroundTransparency = 1
 		slotLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 		slotLabel.TextScaled = true
-		slotLabel.Font = Enum.Font.SourceSansBold
+		slotLabel.Font = Enum.Font.MontserratBold
 		slotLabel.Text = tostring(self._opts.slotIndex)
 		slotLabel.TextXAlignment = Enum.TextXAlignment.Left
 		slotLabel.TextYAlignment = Enum.TextYAlignment.Bottom
 		slotLabel.ZIndex = 1
 		slotLabel.Visible = self._opts.containerType == "hotbar" -- Only show for hotbar
 		slotLabel.Parent = buttonFrame
+
+		local glow = Instance.new("ImageLabel")
+		glow.Name = "Glow"
+		glow.Size = UDim2.new(1.2, 0, 1.2, 0)
+		glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+		glow.AnchorPoint = Vector2.new(0.5, 0.5)
+		glow.BackgroundTransparency = 1
+		glow.Image = "rbxassetid://5538771868" -- Glow image
+		glow.ImageColor3 = Color3.fromRGB(255, 255, 255)
+		glow.ImageTransparency = 0.8
+		glow.ScaleType = Enum.ScaleType.Fit
+		glow.ZIndex = 0
+		glow.Parent = buttonFrame
 
 		local remove = Instance.new("Frame")
 		remove.Name = "RemoveButton"
@@ -383,6 +427,13 @@ function ItemSlot:Init()
 		self._frame.RemoveButton.Visible = true
 	else
 		self._frame.RemoveButton.Visible = false
+	end
+
+	-- // Set item icon size based on container type
+	if self._opts.containerType == "hotbar" then
+		self._frame.Button.ItemIcon.Size = UDim2.new(0.6, 0, 0.6, 0)
+	else
+		self._frame.Button.ItemIcon.Size = UDim2.new(0.8, 0, 0.8, 0)
 	end
 
 	-- // Set layout order based on slot index

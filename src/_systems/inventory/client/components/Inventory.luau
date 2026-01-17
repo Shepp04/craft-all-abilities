@@ -70,6 +70,12 @@ Inventory.__index = Inventory
 -- // Internal state
 local _deps: Deps? = nil
 
+-- // Constants
+local DEFAULT_HEADING_COLOR = Color3.fromRGB(255, 255, 255)
+local DEFAULT_TEXT_COLOR = Color3.fromRGB(200, 200, 200)
+local DEFAULT_HEADING_FONT = Enum.Font.MontserratBold
+local DEFAULT_TEXT_FONT = Enum.Font.Montserrat
+
 -- ========== Constructor ========== --
 
 function Inventory.new(deps: Deps, opts: Opts): InventoryAPI
@@ -416,6 +422,9 @@ function Inventory:_showTooltip(itemId: string)
 		if itemInfo.textData then
 			nameLabel.TextColor3 = itemInfo.textData.nameColor or Color3.fromRGB(255, 255, 255)
 			nameLabel.Font = itemInfo.textData.nameFont or Enum.Font.SourceSansBold
+		else
+			nameLabel.TextColor3 = DEFAULT_HEADING_COLOR
+			nameLabel.Font = DEFAULT_HEADING_FONT
 		end
 	end
 	
@@ -426,6 +435,9 @@ function Inventory:_showTooltip(itemId: string)
 		if itemInfo.textData then
 			descLabel.TextColor3 = itemInfo.textData.descriptionColor or Color3.fromRGB(200, 200, 200)
 			descLabel.Font = itemInfo.textData.descriptionFont or Enum.Font.SourceSans
+		else
+			descLabel.TextColor3 = DEFAULT_TEXT_COLOR
+			descLabel.Font = DEFAULT_TEXT_FONT
 		end
 	end
 	

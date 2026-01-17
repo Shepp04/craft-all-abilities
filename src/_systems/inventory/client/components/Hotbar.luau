@@ -340,7 +340,7 @@ function Hotbar:Init()
 		listLayout.FillDirection = Enum.FillDirection.Horizontal
 		listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-		listLayout.Padding = UDim.new(0, 10)
+		listLayout.Padding = UDim.new(0, 2)
 		listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 		listLayout.Parent = self._frame
 	end

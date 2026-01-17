@@ -77,7 +77,6 @@ end
 function InventoryController:_onInventoryVisibilityChanged()	
 	-- Update hotbar remove button visibility
 	self._hotbarComponent:SetInventoryOpen(self._inventoryOpen)
-	print("[InventoryController] Inventory", self._inventoryOpen and "opened" or "closed")
 end
 
 -- ========== Life Cycle ========== --
@@ -109,7 +108,6 @@ function InventoryController:Init(deps: Deps)
 		onRemove = function(slotNumber: number)
 			-- Remove stack from hotbar slot
 			self._setHotbarSlotRemote:FireServer(slotNumber, nil)
-			print("[InventoryController] Removing stack from hotbar slot", slotNumber)
 		end,
 	})
 
@@ -136,7 +134,6 @@ function InventoryController:Init(deps: Deps)
 			if stackSlot then
 				-- Stack is in hotbar, remove it (send nil)
 				self._setHotbarSlotRemote:FireServer(stackSlot, nil)
-				print("[InventoryController] Removing stack", stackId, "from hotbar slot", stackSlot)
 			else
 				-- Stack not in hotbar, find first available slot and add it
 				local firstAvailableSlot = nil
@@ -149,7 +146,6 @@ function InventoryController:Init(deps: Deps)
 				
 				if firstAvailableSlot then
 					self._setHotbarSlotRemote:FireServer(firstAvailableSlot, stackId)
-					print("[InventoryController] Adding stack", stackId, "to hotbar slot", firstAvailableSlot)
 				else
 					warn("[InventoryController] No available hotbar slots")
 					-- TODO: Show UI message to player
