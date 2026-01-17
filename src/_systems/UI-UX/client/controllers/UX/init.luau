@@ -44,7 +44,6 @@ function UX:Start()
 	for _, module in self._modules do
 		if module.Init then
 			module:Init()
-			print(`[UX] Initialized module '{module}']`)
 		end
 	end
 end

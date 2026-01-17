@@ -46,7 +46,7 @@ function GuiComponent:Create(button: Frame): nil
 	local outTweens = {} :: { [string]: Tween }
  
 	for i, v in childFrame:GetDescendants() do
-		if v:IsA("ImageLabel") or v.Name == "Emoji" then
+		if v:IsA("ImageLabel") or v.Name == "Emoji" or v.Parent.Name == "ItemIcon" then
 			inTweens[v.Name .. tostring(i)] = TweenService:Create(
 				v, TweenInfo.new(0.5, Enum.EasingStyle.Quart), {Rotation = 30}
 			)
