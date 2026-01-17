@@ -18,16 +18,7 @@ local Handlers: { [string]: Handler } = {
 -- ========== Definitions ========== --
 local defs: { gamepasses: { GamepassPrivate } } = {
     gamepasses = {
-        DoubleCurrency = {
-            id = 12345678,
-            name = "Double Currency",
-            category = "Multipliers",
-            description = nil,
-            priceInRobux = nil,
-            iconImageAssetId = nil,
-            handler = Handlers.MultiplierGamepass,
-            params = { value = 2, currencyId = "Cash" },
-        },
+
     }
 }
 

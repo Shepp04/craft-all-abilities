@@ -19,16 +19,7 @@ local Handlers: { [string]: Handler } = {
 -- ========== Definitions ========== --
 local defs: { devProducts: { [string]: DevProductPrivate } } = {
   devProducts = {
-    ["ExampleDevProduct"] = {
-      id = 123456789,
-      name = "Example Name",
-      category = "Example Category",
-      description = nil, -- hydrated automatically
-      priceInRobux = nil, -- hydrated automatically
-      iconImageAssetId = nil, -- hydrated automatically
-      params = {  },
-      handler = Handlers["ExampleHandler"],
-    },
+
   },
 }
 
