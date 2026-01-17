@@ -9,21 +9,36 @@ local ServerScriptService = game:GetService("ServerScriptService")
 -- // Classes
 local PlotClass = require(ServerScriptService.Server.Classes:WaitForChild("Plot"))
 
--- // Types (custom)
-export type PlacedItemData = {
+-- // Plot Data Types
+export type CraftingStationData = {
+	stationId: string, -- e.g. "basic_workbench"
+	unlocked: boolean,
+	unlockedAtTimestamp: number,
+	level: number?,
+	activeCraft: {
+		userId: number,
+		recipeId: string,
+		startTime: number,
+		endTime: number,
+	}?,
+}
+
+export type PlacedObjectData = {
+	type: string, -- "PlaceableItem", "Decoration", etc.
+	instanceId: string,
 	itemId: string,
 	position: Vector3,
 	rotation: number,
 	placedAtTimestamp: number,
-	currenciesToCollect: { [string]: number },
-	modifiers: { any },
+	currenciesToCollect: { [string]: number }?,
+	modifiers: { any }?,
 }
 
-export type CraftingStationData = {
-	stationId: string,
-	unlocked: boolean,
-	unlockedAtTimestamp: number,
-	level: number?,
+export type PlotData = {
+	version: number,
+	unlockedTiles: { [string]: boolean }, -- e.g., "0,0" = true
+	craftingStations: { [number]: CraftingStationData }, -- Fixed stations indexed by number
+	placedObjects: { [string]: PlacedObjectData }, -- User-placed items indexed by instanceId
 }
 
 -- // Types (generated)
@@ -158,6 +173,11 @@ function PlotService:OnPlayerAdded(player: Player): boolean
 
 	-- Store plot reference
 	_plots[player] = result
+	
+	-- Load plot data from profile
+	if profile.Data and profile.Data.Plot then
+		result:LoadFromData(profile.Data.Plot)
+	end
 
 	-- Teleport the player to their plot
 	local cf = result:GetPlayerSpawnCFrame()
@@ -174,6 +194,14 @@ function PlotService:OnPlayerRemoving(player: Player): boolean
 	if not plot then
 		-- Player didn't have a plot (maybe failed to load)
 		return true
+	end
+
+	-- Save plot data to profile before destroying
+	local profile = _deps.DataInterface:GetPlayerProfile(player)
+	if profile and profile.Data then
+		local plotData = plot:SaveData()
+		profile.Data.Plot = plotData
+		print("[PlotService] Saved plot data for", player.Name)
 	end
 
 	-- Get the slot before destroying
@@ -207,14 +235,24 @@ function PlotService:Init(deps: Deps)
 	self._conns = {}
 	_deps = deps
 
-	-- // Register reconcile sections
+	-- Register Plot data section for reconciliation
 	_deps.DataInterface:RegisterReconcileSection("Data", "Plot", {
-		PlacedItems = {} :: { [string]: PlacedItemData },
-		UnlockedTiles = { math.ceil(GRID_WIDTH / 2), GRID_WIDTH % 2 == 0 and (GRID_WIDTH / 2) + 1 or nil } :: { number }, -- index = y * gridwidth + x
-		CraftingStations = { [1] = {
-			craftingStationId = "default_station", unlocked = true, unlockedAtTimestamp = os.time(), level = 1
-		} } :: { [number]: CraftingStationData },
+		version = 1,
+		unlockedTiles = { ["03:00"] = true, ["04:00"] = true }, -- Starting tiles
+		craftingStations = {
+			[1] = {
+				stationId = "basic_workbench",
+				unlocked = true,
+				unlockedAtTimestamp = 0,
+				level = 1,
+				activeCraft = nil,
+			},
+			-- Additional stations can be added as [2], [3], etc.
+		},
+		placedObjects = {},
 	})
+	
+	print("[PlotService] Initialised with Plot data template")
 end
 
 function PlotService:Start()

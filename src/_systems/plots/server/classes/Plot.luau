@@ -7,6 +7,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 
+-- // Classes
+local CraftingStation = require(ServerScriptService.Server.Classes.CraftingStation)
+type CraftingStationAPI = CraftingStation.CraftingStationAPI
+type ActiveCraftData = CraftingStation.ActiveCraftData
+
 -- // Types
 local ServicesTypes = require(ReplicatedStorage.Shared.Types.Services)
 
@@ -44,9 +49,13 @@ export type PlotAPI = {
 	slot: number,
 	_model: Model?,
 	_objects: { [Instance]: any },
+	_craftingStations: { [number]: CraftingStationAPI }, -- stationNumber -> station
 
 	Init: (self: PlotAPI) -> (),
 	Destroy: (self: PlotAPI) -> (),
+	LoadFromData: (self: PlotAPI, plotData: PlotData) -> (),
+	SaveData: (self: PlotAPI) -> PlotData,
+	UpdateProfileData: (self: PlotAPI) -> (), -- Live update to profile
 
 	GetPlayerSpawnCFrame: (self: PlotAPI) -> CFrame?,
 	SetOwnerGui: (self: PlotAPI) -> (),
@@ -95,6 +104,7 @@ function Plot.new(deps: Deps, opts: Opts?): PlotAPI
 	self._opts = opts or {}
 	self._conns = {}
 	self._objects = {}
+	self._craftingStations = {}
 
 	self.owner = self._opts.owner
 	if not self.owner then
@@ -150,7 +160,118 @@ function Plot:SetOwnerGui()
 	end
 end
 
+function Plot:LoadFromData(plotData: PlotData)
+	-- Load crafting stations from saved data
+	if not plotData or not plotData.craftingStations then
+		return
+	end
+	
+	for stationNumber, stationData in plotData.craftingStations do
+		if stationData.unlocked then
+			self:_loadCraftingStation(stationNumber, stationData)
+		end
+	end
+	
+	-- Load user-placed objects
+	if plotData.placedObjects then
+		for instanceId, objectData in plotData.placedObjects do
+			-- TODO: Implement user-placed object loading
+			-- self:_loadPlacedObject(instanceId, objectData)
+		end
+	end
+end
+
+function Plot:SaveData(): PlotData
+	local plotData: PlotData = {
+		version = 1,
+		craftingStations = {},
+		placedObjects = {},
+	}
+	
+	-- Save all crafting stations (fixed stations)
+	for stationNumber, station in self._craftingStations do
+		local activeCraftData = station:GetActiveCraftData()
+		
+		plotData.craftingStations[stationNumber] = {
+			stationId = station._craftingStationId,
+			unlocked = true, -- If it exists in the map, it's unlocked
+			unlockedAtTimestamp = 0, -- TODO: Track when unlocked
+			level = station._level,
+			activeCraft = activeCraftData,
+		}
+	end
+	
+	-- Save user-placed objects
+	-- TODO: Implement user-placed object saving
+	
+	return plotData
+end
+
+function Plot:UpdateProfileData()
+	-- Live update the player's profile with current plot state
+	-- This ensures ProfileStore auto-saves include latest data
+	local profile = _deps.Services.DataInterface:GetPlayerProfile(self.owner)
+	if not profile or not profile.Data then
+		warn("[Plot] Cannot update profile - no profile found for", self.owner.Name)
+		return
+	end
+	
+	profile.Data.Plot = self:SaveData()
+end
+
 -- ========== Internal ========== --
+
+function Plot:_loadCraftingStation(stationNumber: number, stationData: CraftingStationData)
+	-- Find the station model in the plot by number or StationType attribute
+	if not self._model then
+		warn("[Plot] Cannot load crafting station - no model")
+		return
+	end
+	
+	-- Try to find by numbered name first (e.g., "CraftingStation01")
+	local stationName = string.format("CraftingStation%02d", stationNumber)
+	local stationModel = self._model:FindFirstChild(stationName, true) :: Model?
+	
+	-- Fallback to StationType attribute search
+	if not stationModel then
+		for _, child in self._model:GetDescendants() do
+			if child:IsA("Model") and child:GetAttribute("StationType") == stationData.stationId then
+				stationModel = child
+				break
+			end
+		end
+	end
+	
+	if not stationModel then
+		warn("[Plot] Could not find crafting station model:", stationName, "or stationId:", stationData.stationId)
+		return
+	end
+	
+	-- Create station instance with auto-save callback
+	local station = CraftingStation.new(_deps, {
+		craftingStationId = stationData.stationId,
+		model = stationModel,
+		onStateChanged = function()
+			self:UpdateProfileData()
+		end,
+	})
+	
+	station:Init()
+	
+	-- Restore level
+	station._level = stationData.level or 1
+	
+	-- Restore active craft if exists
+	if stationData.activeCraft then
+		station:RestoreActiveCraft(stationData.activeCraft)
+	end
+	
+	-- Store references (indexed by number, not instanceId)
+	self._craftingStations[stationNumber] = station
+	self._objects[stationModel] = station
+	
+	print("[Plot] Loaded crafting station #" .. stationNumber .. ":", stationData.stationId, "for", self.owner.Name)
+end
 
 function Plot:_internalMethod()
 	-- Example
