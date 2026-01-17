@@ -108,7 +108,10 @@ function API.StartAll()
 	if not API._inited or API._started then return end
 	for _, c in ipairs(_ordered) do
 		if typeof((c :: any).Start) == "function" then
-			pcall(function() (c :: any):Start() end)
+			local ok, err = pcall(function() (c :: any):Start() end)
+			if not ok then
+				warn(("[Controllers] Failed to start controller: %s"):format(tostring(err)))
+			end
 		end
 	end
 	API._started = true
@@ -122,7 +125,10 @@ function API.DestroyAll()
 	for i = #_ordered, 1, -1 do
 		local c = _ordered[i]
 		if typeof((c :: any).Destroy) == "function" then
-			pcall(function() (c :: any):Destroy() end)
+			local ok, err = pcall(function() (c :: any):Destroy() end)
+			if not ok then
+				warn(("[Controllers] Failed to destroy controller: %s"):format(tostring(err)))
+			end
 		end
 	end
 	API._started = false
